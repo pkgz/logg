@@ -12,7 +12,7 @@ const (
 	DefaultFormat       = Pretty
 	DefaultColorOutput  = true
 	DefaultFlags        = LstdFlags
-	DefaultMinimumLevel = Info
+	DefaultMinimumLevel = InfoLevel
 
 	ContextCallDepth = 4
 
@@ -30,8 +30,11 @@ const (
 // The prefix is followed by a colon only when Llongfile or Lshortfile
 // is specified.
 // For example, flags Ldate | Ltime (or LstdFlags) produce,
+//
 //	2009/01/23 01:23:23 message
+//
 // while flags Ldate | Ltime | Lmicroseconds | Llongfile produce,
+//
 //	2009/01/23 01:23:23.123123 /a/b/c/d.go:23: message
 const (
 	Ldate         = 1 << iota     // the date in the local time zone: 2009/01/23
@@ -50,8 +53,8 @@ type (
 )
 
 var (
-	levels    = []string{"DBG", "INF", "ERR", "WRN", "PNC", "DEBUG", "INFO", "ERROR", "WARN", "PANIC"}
-	colors    = [][]byte{generate(HiCyan), generate(HiYellow), generate(Red), generate(HiGreen), generate(Red)}
+	levels    = []string{"DBG", "INF", "WRN", "ERR", "PNC", "FTL", "DEBUG", "INFO", "WARN", "ERROR", "PANIC", "FATAL"}
+	colors    = [][]byte{generate(HiCyan), generate(HiYellow), generate(HiGreen), generate(Red), generate(Red), generate(HiRed)}
 	timeColor = generate(7)
 )
 
@@ -63,13 +66,14 @@ const (
 
 // Log levels.
 const (
-	Debug level = iota
-	Info
-	Error
-	Warning
-	Panic
+	DebugLevel level = iota
+	InfoLevel
+	WarningLevel
+	ErrorLevel
+	PanicLevel
+	FatalLevel
 
-	Empty level = -1
+	EmptyLevel level = -1
 )
 
 // Base colors for console

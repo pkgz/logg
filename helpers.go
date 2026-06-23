@@ -133,7 +133,7 @@ func appendTimestamp(t time.Time, format format, flags int, dst []byte) []byte {
 }
 
 func defineLevel(data *[]byte) (lvl level) {
-	lvl = Empty
+	lvl = EmptyLevel
 
 	if len(*data) == 0 {
 		return
@@ -151,12 +151,16 @@ func defineLevel(data *[]byte) (lvl level) {
 		rightPadding = 3
 	}
 
-	for lvl == Empty && rightPadding < maxRightPadding {
+	// levels holds the short names followed by the long names, so an index
+	// found in the second half maps back to its level by subtracting numLevels.
+	numLevels := len(levels) / 2
+
+	for lvl == EmptyLevel && rightPadding < maxRightPadding {
 		searchPart := (*data)[leftPadding:rightPadding]
 		for i := 0; i < len(levels); i++ {
 			if levels[i] == *(*string)(unsafe.Pointer(&searchPart)) {
-				if i > 4 {
-					i -= 5
+				if i >= numLevels {
+					i -= numLevels
 				}
 				lvl = level(i)
 				break
@@ -169,7 +173,7 @@ func defineLevel(data *[]byte) (lvl level) {
 }
 
 func removeLevel(data []byte, lvl level) []byte {
-	if len(data) == 0 || lvl == Empty {
+	if len(data) == 0 || lvl == EmptyLevel {
 		return data
 	}
 

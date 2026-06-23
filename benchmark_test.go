@@ -1,7 +1,7 @@
 package logg
 
 import (
-	"io/ioutil"
+	"io"
 	"log"
 	"testing"
 )
@@ -14,7 +14,7 @@ var benchmarkMessages = map[string][]byte{
 }
 
 func BenchmarkLog_Print(b *testing.B) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 
 	for name, tc := range benchmarkMessages {
 		str := string(tc)
@@ -33,7 +33,7 @@ func BenchmarkLog_Print(b *testing.B) {
 }
 
 func BenchmarkLogg_Log_Print(b *testing.B) {
-	NewGlobal(ioutil.Discard)
+	NewGlobal(io.Discard)
 
 	for name, tc := range benchmarkMessages {
 		str := string(tc)
@@ -52,7 +52,7 @@ func BenchmarkLogg_Log_Print(b *testing.B) {
 }
 
 func BenchmarkLogg_Write_Pretty(b *testing.B) {
-	logger := New(ioutil.Discard)
+	logger := New(io.Discard)
 
 	for name, tc := range benchmarkMessages {
 		b.Run(name, func(b *testing.B) {
@@ -69,7 +69,7 @@ func BenchmarkLogg_Write_Pretty(b *testing.B) {
 }
 
 func BenchmarkLogg_Write_Json(b *testing.B) {
-	logger := New(ioutil.Discard)
+	logger := New(io.Discard)
 	logger.format = Json
 
 	for name, tc := range benchmarkMessages {
@@ -87,7 +87,7 @@ func BenchmarkLogg_Write_Json(b *testing.B) {
 }
 
 func BenchmarkLogg_Print(b *testing.B) {
-	logger := New(ioutil.Discard)
+	logger := New(io.Discard)
 
 	for name, tc := range benchmarkMessages {
 		str := string(tc)
@@ -106,7 +106,7 @@ func BenchmarkLogg_Print(b *testing.B) {
 }
 
 func BenchmarkLogg_Printf(b *testing.B) {
-	logger := New(ioutil.Discard)
+	logger := New(io.Discard)
 
 	for name, tc := range benchmarkMessages {
 		str := string(tc)
@@ -117,7 +117,7 @@ func BenchmarkLogg_Printf(b *testing.B) {
 
 			b.RunParallel(func(pb *testing.PB) {
 				for pb.Next() {
-					logger.Printf(str)
+					logger.Printf("%s", str)
 				}
 			})
 		})

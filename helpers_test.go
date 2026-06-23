@@ -67,17 +67,17 @@ func Test_appendTimestamp(t *testing.T) {
 		"milliseconds only": {
 			t:     now,
 			flags: Lmicroseconds,
-			buf:   []byte(now.Add(time.Nanosecond * 500).Format(".999999")),
+			buf:   []byte(now.Add(time.Nanosecond * 500).Format(".000000")),
 		},
 		"time with milliseconds": {
 			t:     now,
 			flags: Ltime | Lmicroseconds,
-			buf:   []byte(now.Add(time.Nanosecond * 500).Format("15:04:05.999999")),
+			buf:   []byte(now.Add(time.Nanosecond * 500).Format("15:04:05.000000")),
 		},
 		"date with time with milliseconds": {
 			t:     now,
 			flags: Ldate | Ltime | Lmicroseconds,
-			buf:   []byte(now.Add(time.Nanosecond * 500).Format("2006-01-02 15:04:05.999999")),
+			buf:   []byte(now.Add(time.Nanosecond * 500).Format("2006-01-02 15:04:05.000000")),
 		},
 	}
 
@@ -114,93 +114,93 @@ func Test_defineLevel(t *testing.T) {
 		"empty": {
 			data:   []byte{},
 			result: []byte{},
-			level:  Empty,
+			level:  EmptyLevel,
 		},
 		"empty with string": {
 			data:   []byte("test"),
 			result: []byte("test"),
-			level:  Empty,
+			level:  EmptyLevel,
 		},
 		"short": {
 			data:   []byte("INF test"),
 			result: []byte("test"),
-			level:  Info,
+			level:  InfoLevel,
 		},
 		"short with brackets": {
 			data:   []byte("[ERR] test"),
 			result: []byte("test"),
-			level:  Error,
+			level:  ErrorLevel,
 		},
 		"double short": {
 			data:   []byte("WRN ERR test"),
 			result: []byte("ERR test"),
-			level:  Warning,
+			level:  WarningLevel,
 		},
 		"long": {
 			data:   []byte("DEBUG test"),
 			result: []byte("test"),
-			level:  Debug,
+			level:  DebugLevel,
 		},
 		"long with brackets": {
 			data:   []byte("[PANIC] test"),
 			result: []byte("test"),
-			level:  Panic,
+			level:  PanicLevel,
 		},
 		"double long": {
 			data:   []byte("PANIC DEBUG test"),
 			result: []byte("DEBUG test"),
-			level:  Panic,
+			level:  PanicLevel,
 		},
 
 		"debug short": {
 			data:   []byte("DBG test"),
 			result: []byte("test"),
-			level:  Debug,
+			level:  DebugLevel,
 		},
 		"debug long": {
 			data:   []byte("DEBUG test"),
 			result: []byte("test"),
-			level:  Debug,
+			level:  DebugLevel,
 		},
 		"info short": {
 			data:   []byte("INF test"),
 			result: []byte("test"),
-			level:  Info,
+			level:  InfoLevel,
 		},
 		"info long": {
 			data:   []byte("INFO test"),
 			result: []byte("test"),
-			level:  Info,
+			level:  InfoLevel,
 		},
 		"error short": {
 			data:   []byte("ERR test"),
 			result: []byte("test"),
-			level:  Error,
+			level:  ErrorLevel,
 		},
 		"error long": {
 			data:   []byte("ERROR test"),
 			result: []byte("test"),
-			level:  Error,
+			level:  ErrorLevel,
 		},
 		"warning short": {
 			data:   []byte("WRN test"),
 			result: []byte("test"),
-			level:  Warning,
+			level:  WarningLevel,
 		},
 		"warning long": {
 			data:   []byte("WARN test"),
 			result: []byte("test"),
-			level:  Warning,
+			level:  WarningLevel,
 		},
 		"panic short": {
 			data:   []byte("PNC test"),
 			result: []byte("test"),
-			level:  Panic,
+			level:  PanicLevel,
 		},
 		"panic long": {
 			data:   []byte("PANIC test"),
 			result: []byte("test"),
-			level:  Panic,
+			level:  PanicLevel,
 		},
 	}
 
@@ -236,6 +236,6 @@ func Benchmark_removeLevel(b *testing.B) {
 
 	for n := 0; n < b.N; n++ {
 		t := []byte("INFO test")
-		t = removeLevel(t, Info)
+		t = removeLevel(t, InfoLevel)
 	}
 }

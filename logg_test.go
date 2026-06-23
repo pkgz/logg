@@ -3,7 +3,7 @@ package logg
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"reflect"
 	"strings"
@@ -14,8 +14,8 @@ import (
 func TestNew(t *testing.T) {
 	logger := New(nil)
 
-	if logger.out != ioutil.Discard {
-		t.Error("logger writer must be ioutil.Discard if nil writer provided")
+	if logger.out != io.Discard {
+		t.Error("logger writer must be io.Discard if nil writer provided")
 	}
 
 	if logger.color != DefaultColorOutput {
@@ -93,7 +93,7 @@ func TestLogg_Write(t *testing.T) {
 	logger := New(buf)
 	logger.flags = 0
 	logger.color = false
-	logger.minLevel = Info
+	logger.minLevel = InfoLevel
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -202,6 +202,6 @@ func TestDebugMode(t *testing.T) {
 }
 
 func readFromBuffer(buf *bytes.Buffer) string {
-	readBuf, _ := ioutil.ReadAll(buf)
+	readBuf, _ := io.ReadAll(buf)
 	return strings.Replace(string(readBuf), "\n", "", 1)
 }

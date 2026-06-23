@@ -1,6 +1,6 @@
 # logg
-[![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg)](http://godoc.org/github.com/pkgz/logg)
-[![Tests](https://img.shields.io/github/workflow/status/pkgz/logg/Code%20coverage)](https://github.com/pkgz/logg/actions)
+[![Go Reference](https://pkg.go.dev/badge/github.com/pkgz/logg.svg)](https://pkg.go.dev/github.com/pkgz/logg)
+[![Tests](https://img.shields.io/github/actions/workflow/status/pkgz/logg/go.yml?branch=master)](https://github.com/pkgz/logg/actions)
 [![codecov](https://img.shields.io/codecov/c/gh/pkgz/logg)](https://codecov.io/gh/pkgz/logg)
 
 ![](https://serhiy.s3.eu-central-1.amazonaws.com/Github_repo/logg/v3_pretty.png?v1)  
@@ -15,7 +15,9 @@ go get github.com/pkgz/logg
 ## Features
 - color logs
 - different output formats (pretty/json)
-- different levels (debug/info/error/warning/panic)
+- different levels (debug/info/warning/error/panic/fatal)
+- structured key/value fields
+- drop-in `log/slog` handler
 - can be used with internal log library
 - zero allocations
 
@@ -32,15 +34,16 @@ In this mode, the logger will set own writer to log the library. So you can use 
 package main
 
 import (
-    "github.com/pkgz/logg"
-    "log"
-    "os"
+	"log"
+	"os"
+
+	"github.com/pkgz/logg"
 )
 
-func main () {
-    logg.NewGlobal(os.Stdout)
+func main() {
+	logg.NewGlobal(os.Stdout)
 
-    log.Print("ERR some message to log")
+	log.Print("ERR some message to log")
 }
 ```
 
@@ -51,34 +54,81 @@ In this case, you must define a log instance in each context (function). But in 
 package main
 
 import (
-    "github.com/pkgz/logg"
-    "os"
+	"os"
+
+	"github.com/pkgz/logg"
 )
 
-func main () {
-    log := logg.New(os.Stdout)
+func main() {
+	log := logg.New(os.Stdout)
 
-    log.Print("ERR some message to log")
+	log.Print("ERR some message to log")
 }
 ```
 
 
 ### Json log
+
 ```golang
 package main
 
 import (
-    "github.com/pkgz/logg"
-    "os"
+	"os"
+
+	"github.com/pkgz/logg"
 )
 
-func main () {
-    log := logg.New(os.Stdout)
-    log.SetFormat(logg.Json)
+func main() {
+	log := logg.New(os.Stdout)
+	log.SetFormat(logg.Json)
 
-    log.Print("ERR some message to log")
+	log.Print("ERR some message to log")
 }
 ```
+
+### Level functions
+Instead of embedding the level in the message string, you can call a level function directly. These are available both on a local logger instance and as package-level functions after `NewGlobal`:
+
+```golang
+logg.Info("starting up")
+logg.Warnf("retrying in %d seconds", 5)
+logg.Error("something went wrong")
+```
+
+Each level has a plain and a formatted (`f`) variant: `Debug`/`Debugf`, `Info`/`Infof`, `Warn`/`Warnf`, `Error`/`Errorf`, `Panic`/`Panicf`, `Fatal`/`Fatalf`.
+
+`Panic`/`Panicf` log the message and then `panic` with it; `Fatal`/`Fatalf` log the message and then call `os.Exit(1)`.
+
+### Structured fields
+Attach key/value pairs with `With`. The returned `*Entry` exposes the same level methods, and the fields are rendered as `key=value` pairs in pretty mode and as JSON keys in json mode:
+
+```golang
+log := logg.New(os.Stdout)
+
+log.With(logg.F("user", "bob"), logg.F("attempt", 3)).Warn("login failed")
+// INF login failed user=bob attempt=3
+
+log.SetFormat(logg.Json)
+log.With(logg.F("user", "bob"), logg.F("attempt", 3)).Warn("login failed")
+// {"level": "WRN", "message": "login failed", "user": "bob", "attempt": 3}
+```
+
+`Entry` is immutable; `entry.With(...)` returns a new entry, so a base entry can be shared and extended safely.
+
+### slog handler
+`logg` can act as a backend for the standard library's `log/slog`, so you get logg's pretty/json output through the standard structured API:
+
+```golang
+import "log/slog"
+
+logger := slog.New(logg.New(os.Stdout).SlogHandler())
+logger.Info("request handled", "method", "GET", "status", 200)
+
+// or, as a one-liner:
+logger := logg.NewSlog(os.Stdout)
+```
+
+The handler honors the logger's format, time flags, color and minimum level. slog groups are flattened into dotted keys (`req.id`). Caller/source is not emitted via the slog bridge, so leave the file flags off when using it.
 
 ### Settings
 There are a few parameters which you can set:
@@ -88,19 +138,24 @@ There are a few parameters which you can set:
 - color (colorize output or not)
 
 #### Levels
-- Debug: `DBG | DEBUG | [DBG] | [DEBUG]`
-- Info: `INF | INFO | [INF] | [INFO]`
-- Error: `ERR | ERROR | [ERR] | [ERROR]`
-- Warning: `WRN | WARN | [WRN] | [WARN]`
-- Panic: `PNC | PANIC | [PNC] | [PANIC]`
+When a level is embedded in the message string it is recognized in any of these forms:
+
+- Debug (`logg.DebugLevel`): `DBG | DEBUG | [DBG] | [DEBUG]`
+- Info (`logg.InfoLevel`): `INF | INFO | [INF] | [INFO]`
+- Warning (`logg.WarningLevel`): `WRN | WARN | [WRN] | [WARN]`
+- Error (`logg.ErrorLevel`): `ERR | ERROR | [ERR] | [ERROR]`
+- Panic (`logg.PanicLevel`): `PNC | PANIC | [PNC] | [PANIC]`
+- Fatal (`logg.FatalLevel`): `FTL | FATAL | [FTL] | [FATAL]`
+
+The `*Level` constants are what you pass to `MinLevel`, e.g. `logg.MinLevel(logg.WarningLevel)`.
 
 #### API
 | Function | Default | Description |
 | --- | --- | --- |
-| `SetWriter(io.Writer) ` | ioutil.Discard | Set writer. |
+| `SetWriter(io.Writer) ` | io.Discard | Set writer. |
 | `SetFormat(logg.format) ` | Pretty | Set output format. Can be pretty or json. |
 | `SetFlags(int) ` | int | Set time and caller flags. |
-| `MinLevel(level) ` | Info | Minimum level for logs. Logs lower this level will be not writed. |
+| `MinLevel(level) ` | InfoLevel | Minimum level for logs. Logs lower this level will be not writed. |
 | `ToggleColor(bool) ` | true | Enable or disable output colorizing. |
 | `DebugMode() ` | | Will enable a debug mode. Debug mode will add milliseconds to timestamp and log caller. |
 

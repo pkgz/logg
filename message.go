@@ -13,14 +13,15 @@ type message struct {
 	format    format
 	color     bool
 
-	buf []byte
+	fields []Field
+	buf    []byte
 }
 
 var messagePool = sync.Pool{
 	New: func() interface{} {
 		return &message{
 			buf:   make([]byte, 0, 500),
-			level: Empty,
+			level: EmptyLevel,
 		}
 	},
 }
@@ -35,6 +36,7 @@ func newMessage(level level, calldepth int, flags int, format format, color bool
 	m.format = format
 	m.color = color
 
+	m.fields = nil
 	m.buf = m.buf[:0]
 
 	return m
@@ -51,7 +53,7 @@ func (m *message) put() {
 }
 
 func (m *message) build(b []byte) []byte {
-	if len(b) != 0 {
+	if len(b) != 0 || len(m.fields) != 0 {
 		if m.format == Json {
 			m.buildJSON(b)
 		} else {
@@ -66,22 +68,32 @@ func (m *message) buildJSON(b []byte) {
 	js := newJson()
 
 	if m.flags&(Ldate|Ltime|Lmicroseconds) != 0 {
-		js.buf = append(appendTimestamp(time.Now(), m.format, m.flags, js.addField("time", js.buf)))
+		js.addKey("time")
+		js.buf = append(js.buf, '"')
+		js.buf = appendTimestamp(time.Now(), m.format, m.flags, js.buf)
+		js.buf = append(js.buf, '"')
 	}
 
 	if m.flags&(Lshortfile|Llongfile) != 0 {
 		file, line := caller(m.calldepth, m.flags&Lshortfile != 0)
 
-		js.buf = append(js.addField("file", js.buf), file...)
-		js.buf = append(js.addField("line", js.buf), strconv.Itoa(line)...)
+		js.addString("file", file)
+		js.addString("line", strconv.Itoa(line))
 	}
 
-	if m.level != Empty {
-		js.buf = append(js.addField("level", js.buf), levels[m.level]...)
+	if m.level != EmptyLevel {
+		js.addString("level", levels[m.level])
 	}
 
 	if len(b) != 0 {
-		js.buf = append(js.addField("message", js.buf), b...)
+		js.addBytes("message", b)
+	}
+
+	for _, f := range m.fields {
+		if f.Key == "" {
+			continue
+		}
+		js.addValue(f.Key, f.Value)
 	}
 
 	js.close()
@@ -112,19 +124,19 @@ func (m *message) buildPretty(b []byte) {
 		m.buf = append(m.buf, strconv.Itoa(line)...)
 	}
 
-	if m.level != Empty {
+	if m.level != EmptyLevel {
 		if m.flags&(Ldate|Ltime|Lmicroseconds) != 0 || m.flags&(Lshortfile|Llongfile) != 0 {
 			m.buf = append(m.buf, ' ')
 		}
 
-		if m.color && m.level != Empty {
+		if m.color && m.level != EmptyLevel {
 			m.buf = append(m.buf, colors[m.level]...)
 			m.buf = append(m.buf, escape+"[1m"...)
 		}
 
 		m.buf = append(m.buf, levels[m.level]...)
 
-		if m.color && m.level != Empty {
+		if m.color && m.level != EmptyLevel {
 			m.buf = append(m.buf, escapeClose...)
 			m.buf = append(m.buf, escapeClose...)
 		}
@@ -136,5 +148,19 @@ func (m *message) buildPretty(b []byte) {
 		}
 
 		m.buf = append(m.buf, b...)
+	}
+
+	for _, f := range m.fields {
+		if f.Key == "" {
+			continue
+		}
+
+		if len(m.buf) != 0 && m.buf[len(m.buf)-1] != ' ' {
+			m.buf = append(m.buf, ' ')
+		}
+
+		m.buf = append(m.buf, f.Key...)
+		m.buf = append(m.buf, '=')
+		m.buf = appendPrettyValue(m.buf, f.Value)
 	}
 }

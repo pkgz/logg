@@ -25,15 +25,17 @@ package logg
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
+	"sync"
 )
 
 // A Logg represents an active logging object that generates lines of
 // output to an io.Writer. Each logging operation makes a single call to
 // the Logg's Write method.
 type Logg struct {
+	mu sync.Mutex // guards the fields below and serializes writes to out
+
 	format format // output format (string/json)
 	flags  int    // time format flags
 	color  bool   // colorize output
@@ -45,7 +47,7 @@ type Logg struct {
 // Create new a new logg.
 func New(w io.Writer) *Logg {
 	if w == nil {
-		w = ioutil.Discard
+		w = io.Discard
 	}
 
 	return &Logg{
@@ -76,32 +78,36 @@ func (l *Logg) Write(b []byte) (n int, err error) {
 		b = b[0 : n-1]
 	}
 
-	l.write(3, Empty, b)
+	l.write(3, EmptyLevel, nil, b)
 	return
 }
 
-func (l *Logg) write(calldepth int, level level, b []byte) {
-	if b == nil {
+func (l *Logg) write(calldepth int, level level, fields []Field, b []byte) {
+	if b == nil && len(fields) == 0 {
 		return
 	}
 
-	if level == Empty {
+	if level == EmptyLevel {
 		level = defineLevel(&b)
 		b = removeLevel(b, level)
 	}
 
-	if level != Empty && level < l.minLevel {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if level != EmptyLevel && level < l.minLevel {
 		return
 	}
 
 	m := newMessage(level, ContextCallDepth+calldepth, l.flags, l.format, l.color)
+	m.fields = fields
 
 	out := l.out
-	if out == os.Stdout && (level > Error) {
+	if out == os.Stdout && level >= ErrorLevel {
 		out = os.Stderr
 	}
 
-	if err := write(l.out, m.build(b)); err != nil {
+	if err := write(out, m.build(b)); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "logg: could not write message: %v\n", err)
 	}
 	m.put()
@@ -109,5 +115,40 @@ func (l *Logg) write(calldepth int, level level, b []byte) {
 
 // Writer returns the output destination for the standard logger.
 func (l *Logg) Writer() io.Writer {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	return l.out
+}
+
+// enabled reports whether a message at the given level would be written.
+func (l *Logg) enabled(level level) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return level >= l.minLevel
+}
+
+// writeRecord writes a pre-assembled message and is used by the slog bridge.
+// It deliberately ignores the file flags (Lshortfile/Llongfile): slog has its
+// own source mechanism, and logg's runtime.Caller-based lookup cannot report
+// the original call site through slog's frames.
+func (l *Logg) writeRecord(level level, fields []Field, msg string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if level < l.minLevel {
+		return
+	}
+
+	m := newMessage(level, 0, l.flags&^(Lshortfile|Llongfile), l.format, l.color)
+	m.fields = fields
+
+	out := l.out
+	if out == os.Stdout && level >= ErrorLevel {
+		out = os.Stderr
+	}
+
+	if err := write(out, m.build([]byte(msg))); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "logg: could not write message: %v\n", err)
+	}
+	m.put()
 }
